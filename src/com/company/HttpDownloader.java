@@ -10,13 +10,16 @@ import java.nio.file.Paths;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 
 public class HttpDownloader {
     private String outputFolder;
     private int threads = 1;
 
     HttpDownloader(){
-        outputFolder = new File(".").getAbsolutePath();
+        outputFolder = new File("").getAbsolutePath();
     }
 
     HttpDownloader(String outputFolder){
@@ -31,11 +34,16 @@ public class HttpDownloader {
 
     public int downloadFiles(Map<String, List<String>> urls) {
         if(urls == null) return -1;
+        ExecutorService executorService = Executors.newFixedThreadPool(threads);
         for(Map.Entry<String, List<String>> entry : urls.entrySet()){
-//@todo add threads counter.
-// till started threads < this.threads start download.
-// after thread ends run next task.
-            if(downloadFile(entry.getKey(), entry.getValue()) != 0) return -1;
+            executorService.execute(new DownloadHelper(entry.getKey(), entry.getValue()));
+        }
+        executorService.shutdown();
+        try{
+            executorService.awaitTermination(Long.MAX_VALUE, TimeUnit.SECONDS);
+        }
+        catch(Exception e){
+            e.printStackTrace();
         }
         return 0;
     }
@@ -44,6 +52,7 @@ public class HttpDownloader {
         if(url == null || fnames == null || fnames.isEmpty())
             return -1;
         try {
+            TimeUnit.SECONDS.sleep(10);
             URL urlObj = new URL(url);
             ReadableByteChannel rbc = Channels.newChannel(urlObj.openStream());
             String fname = fnames.get(0);
@@ -75,5 +84,20 @@ public class HttpDownloader {
             ex.printStackTrace();
         }
         return -1;
+    }
+
+    private class DownloadHelper implements Runnable{
+        String url=null;
+        List<String> fnames=null;
+
+        DownloadHelper(String url, List<String> fnames){
+            this.url = url;
+            this.fnames = fnames;
+        }
+
+        @Override
+        public void run() {
+            downloadFile(url, fnames);
+        }
     }
 }
